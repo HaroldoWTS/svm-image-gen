@@ -8,6 +8,11 @@
 #include "lualib.h"
 #include "lauxlib.h"
 
+typedef struct {
+	int size;
+	OSQPFloat val[1];
+} LuaOSQPVector;
+
 void printar_vetor(OSQPFloat * q, int n){
 	printf("{");
 	for (; n > 0; q++){
@@ -32,14 +37,20 @@ void printar_csc(OSQPCscMatrix * M){
 		printf("%f,", M->x[i]);
 
 	}
-	printf("}\n}");
+	printf("}\n}\n");
 }
 
 static int lua_printar_vetor(lua_State * L){
-	OSQPFloat * q = lua_touserdata(L, 1);
-	int n = lua_tointeger(L, 2);
-	printar_vetor(q, n);
-	return 0;
+	LuaOSQPVector * v  = lua_touserdata(L,1);
+	OSQPFloat * q = v->val; 
+	int n = lua_tointeger(L,2);
+	lua_pushliteral(L, "{ ");
+	for (int i=0; i<n; i++,q++){
+		lua_pushfstring(L, "%f ", *q);
+	}
+	lua_pushliteral(L, "}\n");
+	lua_concat(L,2+n);
+	return 1;
 }
 
 static int lua_printar_csc(lua_State * L){
@@ -57,20 +68,22 @@ static int lua_printar_csc(lua_State * L){
  */
 static int lua_solucionar(lua_State * L){
 	OSQPCscMatrix * P = lua_touserdata(L,1);
-	OSQPFloat * q = lua_touserdata(L, 2);
+	LuaOSQPVector * q = lua_touserdata(L, 2);
 	OSQPCscMatrix * A = lua_touserdata(L, 3);
-	OSQPFloat * l = lua_touserdata(L, 4);
-	OSQPFloat * u = lua_touserdata(L, 5);
+	LuaOSQPVector * l = lua_touserdata(L, 4);
+	LuaOSQPVector * u = lua_touserdata(L, 5);
 
 	OSQPSolver * solver;
 	OSQPSettings settings;
 	osqp_set_default_settings(&settings);
-	OSQPInt r = osqp_setup(&solver, P, q, A, l, u, A->m, A->n, &settings);
+	OSQPInt r = osqp_setup(&solver, P, q->val, A, l->val, u->val, A->m, A->n, &settings);
 	osqp_solve(solver);
 
 	size_t xsize = sizeof(OSQPFloat)*(A->n);
-	OSQPFloat * x = lua_newuserdatauv(L, xsize , 0);
-	memcpy(x, solver->solution->x, xsize );
+	size_t tam = sizeof(LuaOSQPVector)+ sizeof(OSQPFloat)*(A->n - 1);
+	LuaOSQPVector * xv = lua_newuserdatauv(L, tam , 0);
+	xv->size = A->n;
+	memcpy(xv->val, solver->solution->x, xsize );
 	osqp_cleanup(solver);
 	return 1;
 }
@@ -116,7 +129,6 @@ static int lua_matriz(lua_State * L){
 			lua_pop(L, 1);
 
 			if (val != 0.0){
-				printf("val: %f\n", val);
 				M->nzmax += 1;	
 			}
 		}
@@ -157,16 +169,33 @@ static int lua_matriz(lua_State * L){
  * 1 - lista de numeros
  */
 static int lua_vetor(lua_State *L){
+
 	lua_len(L, 1);
 	int len = lua_tointeger(L, -1);
 	lua_pop(L, 1);
-	OSQPFloat * v = lua_newuserdatauv(L, sizeof(*v)*len, 0);
+	size_t tam = sizeof(LuaOSQPVector) + sizeof(OSQPFloat)*(len-1);
+	LuaOSQPVector * lv = lua_newuserdatauv(L, tam, 0);
+	lv->size = len; 
 	for (int i = 0; i < len; i++){
 		lua_pushinteger(L, i+1 );
 		lua_gettable(L, 1);
-		v[i] = lua_tonumber(L, -1);
+		lv->val[i] = lua_tonumber(L, -1);
 		lua_pop(L, 1);
 	}
+	return 1;
+}
+
+static int vetor_dot(lua_State * L){
+	LuaOSQPVector * u = lua_touserdata(L, 1);
+	LuaOSQPVector * v = lua_touserdata(L, 2);
+	int len = u->size;
+
+	OSQPFloat ret = 0.0;
+	//TODO: BLASificar isso aqui
+	for(int i =0; i<len; i++)
+		ret += (u->val[i])*(v->val[i]);
+	lua_pushnumber(L,ret);
+	printf("dot size: %d\n", len);
 	return 1;
 }
 
@@ -177,6 +206,7 @@ static int luaopen_osqp(lua_State *L) {
 	    {"vetor", lua_vetor}, 
 	    {"printar_vetor", lua_printar_vetor}, 
 	    {"printar_csc", lua_printar_csc}, 
+	    {"dot", vetor_dot}, 
 	    {NULL, NULL}    // Marca o fim da lista
 	};
 	// Cria uma nova tabela e registra as funções
@@ -198,7 +228,11 @@ int main(){
 	lua_pop(L, 1); // Remove a biblioteca da pilha
 
 	if (luaL_dofile(L, "svm.lua") != LUA_OK){
-		fprintf(stderr, "Erro ao executar o arquivo: %s\n", lua_tostring(L, -1));
+		fprintf(stderr, "Erro ao executar svm.lua: %s\n", lua_tostring(L, -1));
+	        lua_pop(L, 1); // Remove a mensagem de erro da pilha
+	}
+	if (luaL_dofile(L, "main.lua") != LUA_OK){
+		fprintf(stderr, "Erro ao executar main.lua: %s\n", lua_tostring(L, -1));
 	        lua_pop(L, 1); // Remove a mensagem de erro da pilha
 	}
 	return 0;

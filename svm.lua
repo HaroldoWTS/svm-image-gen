@@ -1,43 +1,67 @@
---[[training_set = {
-	{{-1, -1}, false},
-	{{1,1}, true}
-}
+svm.train = function(pontos, kernel, C)
+	-- column major "matrix" of K(x_i, x_j) 
+	local K = {}
+	local y = {} --vetor de rotulos
+	local n = #pontos
+	local m = n+1
+	local xj
+	local xi
+	local Kj
+	local Aj 
+	local c -- o vetor solucao
+	local supi --indice de um vetor de suporte
+	local b --bias do plano
+	local D = {}
 
-kernel = svm.dot
+	--i é linha, j é coluna
+	for i = 1,n do
+		y[i] = (pontos[i].label and 1.0) or -1.0
+	end
 
-C = 100
+	--TODO: n calcular duas vezes o kernel, matriz simetrica
+	for j = 1,n do
+		xj = pontos[j].point
+		Kj = {}
+		for i=1,n do
+			xi = pontos[i].point
+			Kj[i] =kernel(xi, xj)
+		end
+		K[j] = Kj
+	end
 
-trained = svm.train(training_set, kernel, C)
-print(trained({2,2}, kernel))
---]]
+	for j =1,n do
+		Dj = {}
+		for i=1,n do
+			Dj[i] = y[i]*y[j]*K[j][i]
+		end
+		D[j] = Dj
+	end
 
-L = {{2,0}, {2,2}}
-A = {{-1, 1, 0}, {1,0,1}}
-C = 100
-q = {-1, -1}
-l = {0, 0, 0}
-u = {0, C, C}
+	c = svm.solve(D,y,C)
+	for i = 1,n do
+		if c[i] ~= 0.0 then
+			supi = i
+			break
+		end
+	end
 
-print('a')
-Lcsc = osqp.matriz(L)
-print('aa')
-osqp.printar_csc(Lcsc)
-print('b')
-Acsc = osqp.matriz(A)
-osqp.printar_csc(Acsc)
-print('c')
-qv = osqp.vetor(q)
-osqp.printar_vetor(qv, 2)
-print('d')
-lv = osqp.vetor(l)
-osqp.printar_vetor(lv, 3)
-print('e')
-uv = osqp.vetor(u)
-osqp.printar_vetor(uv, 3)
+	local sum = 0.0
+	for j = 1,n do
+		sum = sum + c[j]*y[j]*K[supi][j]
+	end
+	b = sum - y[supi]
+
+	return function(z)
+		local rsum = 0.0
+		for i =1,n do
+			rsum = rsum + ((c[i] == 0.0 and 0.0 ) or c[i]*y[i]*kernel(pontos[i].point, z ))
+		end
+		return (rsum - b) > 0
+	end
+
+end
 
 
-rv = osqp.solucionar(Lcsc,qv, Acsc, lv, uv)
-osqp.printar_vetor(rv, 2)
 
 
 
