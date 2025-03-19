@@ -111,6 +111,8 @@ static int lua_solve(lua_State * L){
 	
 	lua_createtable(L,n,0);
 	for(i = 0; i<n;i++){
+		if (solver->solution->x[i] == 0.0)
+			continue;
 		lua_pushinteger(L, i+1);
 		lua_pushnumber(L, solver->solution->x[i]);
 		lua_settable(L, -3);

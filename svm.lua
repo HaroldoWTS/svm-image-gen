@@ -13,55 +13,61 @@ svm.train = function(pontos, kernel, C)
 	local b --bias do plano
 	local D = {}
 
+	if n < 2 then
+		print(n," pontos é muito pouco!")
+		return nil
+	end
+
 	--i é linha, j é coluna
 	for i = 1,n do
 		y[i] = (pontos[i].label and 1.0) or -1.0
 	end
 
-	--TODO: n calcular duas vezes o kernel, matriz simetrica
-	for j = 1,n do
+	--calculando K diagonal superior
+	for j = 1,n do 
 		xj = pontos[j].point
 		Kj = {}
-		for i=1,n do
+		for i=1,j do
 			xi = pontos[i].point
 			Kj[i] =kernel(xi, xj)
 		end
 		K[j] = Kj
 	end
 
+	--K é simétrica
+	for j = 1,n do 
+		for i=j+1,n do
+			K[j][i] = K[i][j]
+		end
+	end
+
 	for j =1,n do
+		yj = y[j]
+		Kj = K[j]
 		Dj = {}
 		for i=1,n do
-			Dj[i] = y[i]*y[j]*K[j][i]
+			Dj[i] = y[i]*yj*Kj[i]
 		end
 		D[j] = Dj
 	end
 
 	c = svm.solve(D,y,C)
-	for i = 1,n do
-		if c[i] ~= 0.0 then
-			supi = i
-			break
-		end
-	end
 
-	local sum = 0.0
-	for j = 1,n do
-		sum = sum + c[j]*y[j]*K[supi][j]
+	--um vetor de suporte deve ser escolhido e sera o primeiro
+	supi = next(c)
+
+	--calculando b (direto da wikipedia)
+	b = 0.0 - y[supi]
+	for j,cj in next,c do
+		b = b + cj*y[j]*K[supi][j]
 	end
-	b = sum - y[supi]
 
 	return function(z)
 		local rsum = 0.0
-		for i =1,n do
-			rsum = rsum + ((c[i] == 0.0 and 0.0 ) or c[i]*y[i]*kernel(pontos[i].point, z ))
+		for i,ci in next,c do
+			rsum = rsum + ci*y[i]*kernel(pontos[i].point, z )
 		end
 		return (rsum - b) > 0
 	end
-
 end
-
-
-
-
 
