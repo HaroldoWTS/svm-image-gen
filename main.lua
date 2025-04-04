@@ -9,13 +9,15 @@ function sample_training_points(n)
 		label = (x+y > 0.0)
 		ret[i] = {point={x,y}, label=label}
 	end
+	ret[n+1] = {point={-1.0, -1.0}, label=false}
+	ret[n+2] = {point={1.0, 1.0}, label=true}
 	return ret
 end
 
-training_set = sample_training_points(50)
+training_set = sample_training_points(1000)
 
 for i,p in next,training_set do
-	print(p.point[1]," ",p.point[2],p.label)
+--	print(p.point[1]," ",p.point[2],p.label)
 end
 
 test_set = {

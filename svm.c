@@ -105,16 +105,20 @@ static int lua_solve(lua_State * L){
 	//resolvendo
 	OSQPSolver * solver;
 	OSQPSettings settings;
+	settings.max_iter = 100000;
 	osqp_set_default_settings(&settings);
 	OSQPInt r = osqp_setup(&solver, &P, q, &A, l, u, m, n, &settings);
 	osqp_solve(solver);
 	
 	lua_createtable(L,n,0);
+	OSQPFloat ci;
 	for(i = 0; i<n;i++){
-		if (solver->solution->x[i] == 0.0)
+		ci =solver->solution->x[i] ;
+		//TODO: Precisao arbitrária!
+		if (ci*ci < 0.00001 )
 			continue;
 		lua_pushinteger(L, i+1);
-		lua_pushnumber(L, solver->solution->x[i]);
+		lua_pushnumber(L, ci);
 		lua_settable(L, -3);
 	}
 
