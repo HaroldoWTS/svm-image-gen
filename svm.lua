@@ -98,6 +98,8 @@ local sum
 local deltaAi
 local deltaAj
 local b
+local yi
+local yj
 
 for it=1,len do
 	A[it] = 0.0
@@ -106,35 +108,37 @@ end
 
 while true do
 	i,j = svm.selectB(Q, A, G, y, C, tau, eps)
+	yi = y[i]
+	yj = y[j]
 	if (j == -1) then
 		break
 	end
-	a = Q[i][i] + Q[j][j] - 2*y[i]*y[j]*Q[i][j]
+	a = Q[i][i] + Q[j][j] - 2*yi*yj*Q[i][j]
 	if (a <= 0) then
 		a = tau
 	end
-	b = -1.0*y[i]*G[i] + y[j]*G[j]
+	b = -1.0*yi*G[i] + yj*G[j]
 
 	--update alpha
 	oldAi = A[i]
 	oldAj = A[j]
-	A[i] = A[i] + y[i]*b/a
-	A[j] = A[j] - y[j]*b/a
+	A[i] = A[i] + yi*b/a
+	A[j] = A[j] - yj*b/a
 
 	--project alpha back to the feasible region
-	sum = y[i]*oldAi + y[j]*oldAj
+	sum = yi*oldAi + yj*oldAj
 	if A[i] > C then
 		A[i] = C
 	elseif A[i] < 0.0 then
 		A[i] = 0.0
 	end
-	A[j] = y[j]*(sum -y[i]*A[i])
+	A[j] = yj*(sum -yi*A[i])
 	if A[j] > C then
 		A[j] = C
 	elseif A[j] < 0.0 then
 		A[j] = 0.0
 	end
-	A[i] = y[i]*(sum -y[j]*A[j])
+	A[i] = yi*(sum -yj*A[j])
 
 	--update gradient
 	deltaAi = A[i] - oldAi
@@ -160,28 +164,34 @@ svm.selectB = function(Q, A, G, y, C, tau, eps)
 	local G_max = "inf"
 	local G_min = "-inf"
 	local b
-	
+	local yt
+	local Qi
+
 	for t = 1,len do
-		if (y[t] == 1 and A[t] < C) or
-			(y[t] == -1 and A[t] > 0) then
-			if (G_max == "inf" or -y[t]*G[t] >= G_max) then
+		yt = y[t]
+		if (yt == 1 and A[t] < C) or
+			(yt == -1 and A[t] > 0) then
+			if (G_max == "inf" or -yt*G[t] >= G_max) then
 				i = t
-				G_max = -1*y[t]*G[t]
+				G_max = -1*yt*G[t]
 			end
 		end
 	end
 
+	Qi = Q[i]
+
 	j = -1
 	obj_min = "inf"
 	for t=1,len do
-		if (y[t] == 1 and A[t] > 0) or
-			(y[t] == -1 and A[t] < C) then
-			b = G_max + y[t]*G[t]
-			if (G_min == "-inf" or -1*y[t]*G[t] <= G_min) then
-				G_min = -1*y[t]*G[t]
+		yt = y[t]
+		if (yt == 1 and A[t] > 0) or
+			(yt == -1 and A[t] < C) then
+			b = G_max + yt*G[t]
+			if (G_min == "-inf" or -1*yt*G[t] <= G_min) then
+				G_min = -1*yt*G[t]
 			end
 			if (b >0) then
-				a=Q[i][i]+Q[t][t]-2*y[i]*y[t]*Q[i][t]
+				a=Qi[i]+Q[t][t]-2*y[i]*yt*Qi[t]
 				if (a <= 0) then
 					a = tau
 				end
