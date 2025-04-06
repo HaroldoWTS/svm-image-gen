@@ -37,10 +37,23 @@ end
 
 C = 10000
 
-print(#training_set, " pontos!")
+local training_size = #training_set
+print("Treinando com", training_size, "pontos!")
 
 trained = svm.train(training_set, kernel, C)
 
+print("Testando no conjunto de treino...")
+
+local score = 0
+for t=1,training_size do
+	if trained(training_set[t].point, kernel) == training_set[t].label then
+		score = score + 1	
+	end
+end
+print("Pontuação: ",score/training_size)
+
+
+print("Testando no conjunto de teste...")
 for t=1,#test_set do
 	print(trained(test_set[t].point, kernel) == test_set[t].label)
 end

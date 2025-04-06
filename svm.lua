@@ -53,7 +53,8 @@ svm.train = function(pontos, kernel, C)
 	end
 
 
-	c = svm.chinksolve(D,y,C)
+	--c = svm.chinksolve(D,y,C)
+	c = svm.solve_smo_wss3(D,y,C)
 
 	print(#c,"vetores de suporte")
 	for i,ci in next,c do
