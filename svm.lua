@@ -18,43 +18,20 @@ svm.train = function(pontos, kernel, C)
 		return nil
 	end
 
+
+	
 	--i é linha, j é coluna
 	for i = 1,n do
 		y[i] = (pontos[i].label and 1.0) or -1.0
 	end
-
-	--calculando K diagonal superior
-	for j = 1,n do 
-		xj = pontos[j].point
-		Kj = {}
-		for i=1,j do
-			xi = pontos[i].point
-			Kj[i] =kernel(xi, xj)
-		end
-		K[j] = Kj
-	end
-
-	--K é simétrica
-	for j = 1,n do 
-		for i=j+1,n do
-			K[j][i] = K[i][j]
-		end
-	end
-
 	
-	for j =1,n do
-		yj = y[j]
-		Kj = K[j]
-		Dj = {}
-		for i=1,n do
-			Dj[i] = y[i]*yj*Kj[i]
-		end
-		D[j] = Dj
+	K = function(i, j)
+		return kernel(pontos[i].point, pontos[j].point)
 	end
-
 
 	--c = svm.chinksolve(D,y,C)
-	c = svm.solve_smo_wss3(D,y,C)
+	print("Chamando C")
+	c = svm.solve_smo_wss3(K,y,C)
 
 	print(#c,"vetores de suporte")
 	for i,ci in next,c do
@@ -65,9 +42,10 @@ svm.train = function(pontos, kernel, C)
 	supi = next(c)
 
 	--calculando b (direto da wikipedia)
+	--D(i,j) = K(i,j)*yi*yj
 	b = 0.0 - y[supi]
 	for j,cj in next,c do
-		b = b + cj*y[j]*K[supi][j]
+		b = b + cj*y[j]*K(supi, j)
 	end
 
 	print("b:",b)

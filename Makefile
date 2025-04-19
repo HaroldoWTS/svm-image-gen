@@ -2,9 +2,8 @@
 
 all: build/svm-image-gen
 
-OSQPDIR=/home/haroldo/opt/osqp
-LDFLAGS=${OSQPDIR}/lib64/libosqpstatic.a -lm $(shell pkg-config --libs lua)
-INCLUDE=-I${OSQPDIR}/include/osqp
+LDFLAGS=-lm $(shell pkg-config --libs lua)
+INCLUDE=
 CFLAGS=${INCLUDE}
 BUILD ?= debug
 
@@ -21,8 +20,8 @@ release:
 	$(MAKE) BUILD=release
 
 
-build/svm-image-gen: main.o svm.o
-	${CC} ${CFLAGS} ${OSQPLIB}  -o $@ $^ ${LDFLAGS}
+build/svm-image-gen: main.o svm.o smo.o
+	${CC} ${CFLAGS} -o $@ $^ ${LDFLAGS}
 
 clean:
 	rm -f *.o

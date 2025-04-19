@@ -1,3 +1,5 @@
+math.randomseed(2345678)
+
 function sample_training_points(n)
 	local ret = {}
 	local x = 0.0

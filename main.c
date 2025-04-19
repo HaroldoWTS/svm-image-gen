@@ -1,15 +1,12 @@
 #include "stdio.h"
 #include "stdlib.h"
 #include "string.h"
-#include "osqp.h"
 #include "assert.h"
 #include "math.h"
 #include "lua.h"
 #include "lualib.h"
 #include "lauxlib.h"
 #include "svm.h"
-
-
 
 static int panik(lua_State * L){
 	fprintf(stderr, "PANIC: Um erro crítico ocorreu: %s\n", lua_tostring(L, -1));
