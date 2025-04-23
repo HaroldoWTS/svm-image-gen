@@ -19,15 +19,20 @@ static int lua_solve_smo_wss3(lua_State * L){
 	lua_len(L, y_INDEX);
 	int len = lua_tointeger(L, -1);
 	SMO_State * s = SMO_newstate(len);
+	printf("SMO inicializado.\n");
 
 	lua_pop(L, 1);
 
+	//y tem q ser informado primeiro
 	for (t =0; t< len; t++){
 		lua_pushinteger(L, t+1);
 		lua_gettable(L, y_INDEX);
 		SMO_sety(s,t, lua_tointeger(L, -1));
-		lua_pop(L, 1); 
+		lua_pop(L, 1);
+	}
 
+	for (t =0; t< len; t++){
+		
 		for (tt =0; tt< len; tt++){
 			lua_pushvalue(L, K_INDEX);
 			lua_pushinteger(L, t+1);

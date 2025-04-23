@@ -16,7 +16,7 @@ function sample_training_points(n)
 	return ret
 end
 
-training_set = sample_training_points(10000)
+training_set = sample_training_points(6000)
 
 for i,p in next,training_set do
 --	print(p.point[1]," ",p.point[2],p.label)

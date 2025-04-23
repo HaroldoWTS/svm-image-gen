@@ -1,107 +1,124 @@
 #include "smo.h"
 #include "stdlib.h"
 #include <float.h>
+#include <omp.h>
+#include "math.h"
+
+typedef struct {
+	double A;
+	double y;
+	double G;
+	unsigned int index;
+	double Qdiag;
+} SMO_Block;
 
 struct SMO_State {
-	double * G;
-	double * A;
-	double ** K;
-	int * y;
+	double ** Q;
 	unsigned int len;
-	int i;
-	int j;
+	SMO_Block * s;
 };
 
+
 void SMO_close(SMO_State * s){
-	free(s->G);
-	free(s->A);
-	free(s->y);
+	free(s->s);
 
 	for (unsigned int t = 0; t< s->len; t++){
-		free(s->K[t]);
+		free(s->Q[t]);
 	}
-	free(s->K);
+	free(s->Q);
 	free(s);
 }
 
 SMO_State * SMO_newstate( unsigned int len){
 	SMO_State * s = malloc(sizeof(*s));
 	s->len = len;
-	s->i = s->j = -1;
-	s->G = s->A = NULL;
-	s->K = NULL;
-	s->y = NULL;
+	s->s = NULL;
+	s->Q = NULL;
 	if (!s) return NULL;
-	s->K = malloc(sizeof(*(s->K))*len);
-	s->y = malloc(sizeof(*(s->y))*len);
-	s->A = malloc(sizeof(*(s->A))*len);
-	s->G = malloc(sizeof(*(s->G))*len);
+	s->Q = malloc(sizeof(*(s->Q))*len);
+	s->s = malloc(sizeof(*(s->s))*len);
 
 	for (unsigned int t = 0; t< s->len; t++){
-		s->A[t] = 0.0;
-		s->G[t] = -1.0;
+		s->s[t].index = t;
+		s->s[t].A = 0.0;
+		s->s[t].G = -1.0;
 		//Q[j][i] é o elemento da coluna j, linha i
 		//so armazeno a triangular superior
-		s->K[t] = malloc(sizeof(double)*(t+1));
+		s->Q[t] = malloc(sizeof(double)*(t+1));
 	}
 
 	return s;
 }
 
 void SMO_sety(SMO_State * s, unsigned int index, int value){
-	s->y[index] = value;
+	s->s[index].y = value;
 }
 
 void SMO_setk(SMO_State * s, unsigned int i, unsigned int j, double value){
 	//qualquer j é valido, mas nem todo i é válido
 	if (i > j){
-		s->K[i][j] = value;
+		s->Q[i][j] = value*s->s[i].y*s->s[j].y;
+
 	}else{
-		s->K[j][i] = value;
+		s->Q[j][i] = value*s->s[i].y*s->s[j].y;
+		if (i == j)
+			s->s[i].Qdiag = s->s[j].Qdiag = s->Q[j][i];
 	}
 }
 
 
 static inline double SMO_Q(SMO_State * s, unsigned int i, unsigned int j){
-	return s->y[i] * s->y[j] * ( (i > j) ? (  s->K[i][j] )  : s->K[j][i]  );
+	//return s->s[i].y * s->s[i].y * ( (i > j) ? (  s->K[i][j] )  : s->K[j][i]  );
+	return ( (i > j) ? (  s->Q[i][j] )  : s->Q[j][i]  );
 }
 
 
-static int SMO_selectB(SMO_State * s, double C, double eps){
-	int i= -1;
-	int j;
-	unsigned int t;
+static int selecti(SMO_State * s , const double C, double * G_max_ret){
 	double G_max = -DBL_MAX;
-	double G_min = DBL_MAX;
-	double obj_min = DBL_MAX;
-	double a, b, yt;
-	int * y = s->y;
-	double * A = s->A;
-	double * G = s->G;
-
-	for (t = 0; t < s->len; t++){
-		yt = y[t];
-		if ((yt == 1 && A[t] < C) ||
-			(yt == -1 && A[t] > 0)){
-			if (-yt*G[t] >= G_max){
+	int i;
+	double minus_yt_Gt;
+	SMO_Block v;
+	const unsigned int len = s->len;
+	for (unsigned int t = 0; t < len; t++){
+		v = s->s[t];
+		if ((v.y == 1 && v.A < C) ||
+			(v.y == -1 && v.A > 0)){
+			minus_yt_Gt = -1.0*v.y*v.G;
+			if ( minus_yt_Gt >= G_max){
 				i = t;
-				G_max = -1.0*yt*G[t];
+				G_max = minus_yt_Gt;
 			}
 		}
 	}
+
+	*G_max_ret = G_max;
+	return i;
+}
+
+static int selectj(SMO_State *s, const int i, const double C, const double G_max, double * G_min_ret){
 	
-	j = -1;
-	for (t=0; t<s->len;t++){
-		yt = y[t];
-		if ((yt == 1 && A[t] > 0.0) ||
-			(yt == -1 && A[t] < C)){
-			b = G_max + yt*G[t];
-			if (-1.0*yt*G[t] <= G_min)
-				G_min = -1.0*yt*G[t];
+	double a, b, yi;
+	double obj_min = DBL_MAX;
+	double G_min = DBL_MAX;
+	double Qii = s->s[i].Qdiag;
+	yi = s->s[i].y;
+	int j = -1;
+	SMO_Block vt;
+	double minus_y_G;
+
+	const unsigned int len = s->len;
+	for (unsigned int t=0; t< len;t++){
+		vt = s->s[t];
+		if ((vt.y == 1 && vt.A > 0.0) ||
+			(vt.y == -1 && vt.A < C)){
+			b = G_max + vt.y*vt.G;
+			minus_y_G = -1.0*vt.y*vt.G;
+			if ( minus_y_G<= G_min)
+				G_min = minus_y_G;
 	
 			if (b >0){
 				//a=Qi[i]+Q[t][t]-2.0*y[i]*yt*Qi[t];
-				a=SMO_Q(s,i,i)+SMO_Q(s,t,t)-2.0*y[i]*yt*SMO_Q(s,i,t);
+				a=Qii+vt.Qdiag -2.0*yi*vt.y*SMO_Q(s,i,t);
 				if (a <= 0.0)
 					a = 0.0;
 				
@@ -112,65 +129,80 @@ static int SMO_selectB(SMO_State * s, double C, double eps){
 			}
 		}
 	}
+	*G_min_ret = G_min;
+	return j;
+}
+
+static int SMO_selectB(SMO_State * s, double C, double eps, SMO_Block * Bi, SMO_Block * Bj){
+	int i= -1;
+	int j;
+	double G_max = -DBL_MAX;
+	double G_min = DBL_MAX;
+
+	i = selecti(s,C,&G_max);
+
+	j = selectj(s,i,C,G_max,&G_min);
+	
 	if ((G_max-G_min < eps) || (j == -1)){
 		return 0;
 	}else{
-		s->i = i;
-		s->j = j;
+		*Bi = s->s[i];
+		*Bj = s->s[j];
 		return 1;
 	}
 }
 
 void SMO_solve(SMO_State * s, double C){
-	int yi, yj;
-	double a,b,Ai, Aj, sum, oldAi, oldAj, deltaAi, deltaAj;
+	double a,b, sum, oldAi, oldAj, deltaAi, deltaAj;
 	double eps = 10e-4;
 	unsigned int t;
 
-	while (SMO_selectB(s, C, eps)){
-		yi = s->y[s->i];
-		yj = s->y[s->j];
-		Ai = s->A[s->i];
-		Aj = s->A[s->j];
-		oldAi = Ai;
-		oldAj = Aj;
-		sum = yi*oldAi + yj*oldAj;
+	SMO_Block Bi, Bj;
+	while (SMO_selectB(s, C, eps, &Bi, &Bj)){
+		oldAi = Bi.A;
+		oldAj = Bj.A;
+		sum = Bi.y*oldAi + Bj.y*oldAj;
 		
 		//a = Q[i][i] + Q[j][j] - 2*yi*yj*Q[i][j];
-		a = SMO_Q(s,s->i,s->i) + SMO_Q(s,s->j,s->j) -2*yi,yj*SMO_Q(s,s->i,s->j);
+		a = Bi.Qdiag + Bj.Qdiag -2.0*Bi.y*Bj.y*SMO_Q(s,Bi.index,Bj.index);
+		//a = SMO_Q(s,Bi.,s->i) + SMO_Q(s,s->j,s->j) -2*yi,yj*SMO_Q(s,s->i,s->j);
 		//a = s->Qdiag[s->i] + s->Qdiag[j] -2*yi,yj*SMO_Q(s,i,j);
-		if (a <= 0.0)
-			a = 0.0;
-		b = -1.0*yi*(s->G[s->i]) + yj*(s->G[s->j]);
+		
+		if (a < 0.0) a = 0.0;
+		b = -1.0*Bi.y*(Bi.G) + Bj.y*(Bj.G);
 
 		//update alpha
 		//
-		Ai = Ai + yi*b/a;
-		Aj = Aj - yj*b/a;
+		Bi.A += Bi.y*b/a;
+		Bj.A -= Bj.y*b/a;
 
 		//project alpha back to the feasible region
-		if (Ai > C )
-			Ai = C;
-		else if (Ai < 0.0)
-			Ai = 0.0;
 	
-		Aj = yj*(sum -yi*Ai);
-		if (Aj > C)
-			Aj = C;
-		else if (Aj < 0.0)
-			Aj = 0.0;
-		Ai = yi*(sum -yj*Aj);
-		deltaAi = Ai - oldAi;
-		deltaAj = Aj - oldAj;
+		if (Bi.A > C)
+			Bi.A = C;
+		else if (Bi.A < 0.0)
+			Bi.A = 0.0;
 
-		s->A[s->i] = Ai;
-		s->A[s->j] = Aj;
+		Bj.A = Bj.y*(sum -Bi.y*Bi.A);
+	
+		if (Bj.A > C)
+			Bj.A = C;
+		else if (Bj.A < 0.0)
+			Bj.A = 0.0;
+
+
+		Bi.A = Bi.y*(sum -Bj.y*Bj.A);
+		deltaAi = Bi.A - oldAi;
+		deltaAj = Bj.A - oldAj;
+
+		s->s[Bi.index].A = Bi.A;
+		s->s[Bj.index].A = Bj.A;
 		for (t = 0; t< s->len; t++)
-			s->G[t] += SMO_Q(s,t,s->i)*deltaAi + SMO_Q(s,t,s->j)*deltaAj;
+			s->s[t].G += SMO_Q(s,t,Bi.index)*deltaAi + SMO_Q(s,t,Bj.index)*deltaAj;
 	}
 }
 
 
 double SMO_getsolution(SMO_State * s, unsigned int index){
-	return s->A[index];
+	return s->s[index].A;
 }

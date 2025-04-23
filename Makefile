@@ -4,13 +4,13 @@ all: build/svm-image-gen
 
 LDFLAGS=-lm $(shell pkg-config --libs lua)
 INCLUDE=
-CFLAGS=${INCLUDE}
+CFLAGS=${INCLUDE} 
 BUILD ?= debug
 
 ifeq ($(BUILD),release)
-    CFLAGS += -O3 -DNDEBUG
+    CFLAGS += -finline-functions -march=native -O3 -DNDEBUG
 else
-    CFLAGS += -g -O0 -Wall -Wextra
+    CFLAGS += -g -O0 -Wall -Wextra 
 endif
 
 debug:
