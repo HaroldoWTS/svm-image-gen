@@ -19,7 +19,7 @@ static int lua_solve_smo_wss3(lua_State * L){
 	lua_len(L, y_INDEX);
 	int len = lua_tointeger(L, -1);
 	SMO_State * s = SMO_newstate(len);
-	printf("SMO inicializado.\n");
+	printf("SMO alocado.\n");
 
 	lua_pop(L, 1);
 
@@ -43,6 +43,8 @@ static int lua_solve_smo_wss3(lua_State * L){
 			lua_pop(L, 1);
 		}
 	}
+
+	printf("SMO inicializado. Resolvendo...\n");
 	
 	SMO_solve(s, lua_tonumber(L, C_INDEX));
 
