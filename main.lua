@@ -32,7 +32,7 @@ function sample_training_points_quadcircle(n)
 		y = math.random()*20 - 10
 		rx = x - 6
 		ry = y - 3
-		point = {point={x,y}}
+		point = {point={x/10.0,y/10.0}}
 		if x > 4.0 and x < 8.0 and y > 1.0 and y < 5 and (rx*rx + ry*ry) > 1.0 then
 			point.label = true	
 		else
@@ -54,7 +54,7 @@ test_set = {
 local C = 10000
 
 svm_train = function(tset)
-	return svm.train(tset, kernels.get_poly(1, 3), C )
+	return svm.train(tset, kernels.get_poly(0.5, 4), C )
 end
 
 test.svm(svm_train, sample_training_points_quadcircle, 1000)
