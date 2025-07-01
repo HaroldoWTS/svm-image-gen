@@ -18,12 +18,15 @@ svm.train = function(pontos, kernel, C)
 		return nil
 	end
 
-
+	local pointsdat = io.open("points.dat", "w")
 	
 	--i é linha, j é coluna
 	for i = 1,n do
+		pointsdat:write(pontos[i].point[1].." "..pontos[i].point[2].." "..(pontos[i].label and 1 or -1 ).."\n" )
 		y[i] = (pontos[i].label and 1.0) or -1.0
 	end
+
+	pointsdat:close()
 	
 	K = function(i, j)
 		return kernel(pontos[i].point, pontos[j].point)
@@ -34,9 +37,12 @@ svm.train = function(pontos, kernel, C)
 	c = svm.solve_smo_wss3(K,y,C)
 
 	print(#c,"vetores de suporte")
+	local svdat = io.open("sv.dat", "w")
 	for i,ci in next,c do
 		print("c",i,ci)
+		svdat:write(pontos[i].point[1].." "..pontos[i].point[2].." "..(pontos[i].label and 1 or -1 ).."\n" )
 	end
+	svdat:close()
 
 	--um vetor de suporte deve ser escolhido e sera o primeiro
 	supi = next(c)
